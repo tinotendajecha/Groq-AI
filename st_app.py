@@ -8,35 +8,73 @@ from langchain.chains.conversation.memory import ConversationBufferWindowMemory
 
 from dotenv import load_dotenv
 
+load_dotenv()
 
+api_key = os.getenv('GROQ_API_KEY')
+
+
+
+# Typical data = { } | If empty will generate random questions then if not empty will generate questions based on the data
+def generate_example_questions():
+
+    default_questions = [
+        {
+        'prompt_id': 1,
+        'prompt_response' : '''You are a machine learning expert data annotator analyzing news articles. Provide the following to build a knowledge graph:\n\n1. Entities: Max List entities or 'No'.\n2. INTELLECTUAL CONCEPTS\n3. BIG THEMES\n\nINSTRUCTIONS\n\n- Express each INTELLECTUAL CONCEPTS in 1 to 2 words max\n- Express each BIG THEME in 3 to 4 words max\n\nPresent output as a numbered list'''
+        },
+        {
+        'prompt_id': 2,
+        'prompt_response' : '''
+            What additional items can be added to this
+                OR
+            For each of the above categories, What additional items can be added to them.
+        '''
+        },
+        {
+        'prompt_id': 3,
+        'prompt_response' : '''
+            These entities were identified in an article.  Provide best categorization in the format \n
+            1. entity, classification, define
+        '''
+        }
+    ]
+    return default_questions
+    
+    # if data != []:
+    #     # Take the data pass it into an llm then have it generate 3 seggestion questions frrom the context
+    #     # client = Groq()
+
+    #     # response = client.chat.completions.create(
+    #     #             messages=[
+    #     #         {
+    #     #             "role": "system",
+    #     #         "content": """you are a helpful assistant who generates three suggestions of questions based on the context of the conversation in a simple JSON format/n
+    #     #             /n{
+    #     #                 /n "questions": ["qsn1", "qsn2", "qsn3"]
+    #     #             /n}
+    #     #         """
+    #     #         },
+    #     #         {
+    #     #             "role": "user",
+    #     #             "content": f"{data}",
+    #     #         }
+    #     #     ],
+    #     #     model="mixtral-8x7b-32768",
+    #     #     max_tokens=1024,
+    #     #     response_format= {"type": "json_object"}
+    #     # )
+
+    #     # return response
+    #     return []
 
 
 def main():
-    load_dotenv()
-
-    api_key = os.getenv('GROQ_API_KEY')
 
     client = Groq()
 
-    # Display the Groq logo
-    spacer, col = st.columns([5, 1])  
-    with col:  
-        st.image('groqcloud_darkmode.png')
-    
-
-    st.title('Chat with Groq')
-    st.write('Hey, I am your groq assistant. I am here to help you with your queries. Please type your query in the box below and I will try to help you out.')
-
     # Add customization options to the sidebar
     st.sidebar.title('Customization')
-
-    # Set additional text in state
-    if 'additional_text_input' not in st.session_state:
-        st.session_state.additional_text_input = ''
-
-    additional_text_input = st.sidebar.text_input('Enter any large text input you might have here', value=st.session_state['additional_text_input'])
         
-    st.session_state['additional_text_input'] = additional_text_input
 
     model_to_use = st.sidebar.selectbox(
         'Choose a model',
@@ -44,9 +82,22 @@ def main():
     )
     conversational_memory_length = st.sidebar.slider('Conversational memory length:', 1, 10, value = 5)
 
-    # Creat a text input field
-    user_question = st.text_input('Ask your question')
+    list_of_qsns = []
 
+    example_questions = generate_example_questions()
+
+    for question in example_questions:
+        list_of_qsns.append(question['prompt_response'])
+    
+    presaved_prompt = st.sidebar.selectbox(
+        'Exisiting prompts',
+        list_of_qsns,
+        placeholder='Select a question to use as a prompt',
+        index=None
+    )
+
+    # Creat a text input field
+    user_question = st.chat_input('Prompt to use')
 
     memory = ConversationBufferWindowMemory(k=conversational_memory_length) # Set the memory length    
 
@@ -60,7 +111,7 @@ def main():
     # Initialize Groq Langchain chat object and conversation
     groq_chat = ChatGroq(
         groq_api_key=api_key, 
-        model_name=model_to_use
+        model_name=model_to_use,
     )
 
     # Hook up the converstion chain
@@ -69,37 +120,53 @@ def main():
         memory=memory
     )
 
-    if user_question:
-        user_query =  user_question + ' ' + additional_text_input
-        # print(user_query)
-        # print(len(user_query))
+    # print(example_questions)
 
-        response = conversation.invoke(user_query)
+    # and user_question != ''
+    if user_question:
+
+        if presaved_prompt != None:
+            user_question = presaved_prompt + ' ' + user_question
+        
+        print(user_question)
+        time.sleep(20)
+
+        response = conversation.invoke(user_question)
 
         # create a message to append to chat history
-        message = {'human': user_query, 'AI' : response['response']}
+        message = {'human': user_question, 'AI' : response['response']}
 
         # Append the message to the chat history
         st.session_state.chat_history.append(message)
 
-        response_text = response['response']
+        # Will append the code here for example questions
+
+        # response_text = response['response']
         
         st.markdown(':green[Groq]')
-        st.write(response_text)
+        # st.write(response_text)
 
-        st.session_state['additional_text_input'] = " "
-        # print(st.session_state['additional_text_input'])
+        for message in st.session_state['chat_history']:
+            with st.chat_message("user"):
+                st.markdown(message['human'])
+            
+            with st.chat_message("assistant"):
+                st.markdown(message['AI'])
+
+    
+    
+    # example_questions = generate_example_questions(st.session_state.chat_history)
+    
+    # questions = st.selectbox(
+    #     'Exisiting prompts',
+    #     ['qsn 1', 'qsn2']
+    # )
+
+
 
         
 
-
-
-
-
-
-
-
-
+        
 
 
 
